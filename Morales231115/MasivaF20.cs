@@ -14,11 +14,13 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Text;
 
     using Newtonsoft.Json;
 
     using Sat.DeclaracionesAnuales.Attributes;
     using Sat.DeclaracionesAnuales.CargaMasiva.Models.Base;
+    using Sat.DeclaracionesAnuales.Exeptions;
     using Sat.DeclaracionesAnuales.TxtReader;
 
     #endregion
@@ -28,6 +30,17 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
     /// </summary>
     public class MasivaF20 : InformacionIntegrantesF20, IMasiva, IMasivaExtraccion<MasivaF20>
     {
+        #region Constants
+
+        private const string C7IsrACargo   = "SUMA111119";
+        private const string C6IsrAFavor   = "SUMA111159";
+        private const string C7ImpacACargo = "SUMA121105";
+        private const string C6ImpacAFavor = "SUMA121125";
+        private const string C7IetuACargo  = "SUMA195179";
+        private const string C6IetuAFavor  = "SUMA195180";
+
+        #endregion
+
         #region Fields
 
         /// <summary>
@@ -114,7 +127,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </summary>
         public MasivaF20()
         {
-            this.ObtenerNombreAuxiliar();
+            this.InicializaCampos();
         }
 
         /// <summary>
@@ -124,7 +137,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         public MasivaF20(string auxiliarValor)
             : base(auxiliarValor)
         {
-            this.ObtenerNombreAuxiliar();
+            this.InicializaCampos();
         }
 
         #endregion
@@ -171,8 +184,9 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
 
             set
             {
-                this.mas205194 = value;
+                this.mas205194        = value.ToUpper();
                 this.RfcDelIntegrante = this.mas205194;
+                this.Rfc              = this.RfcDelIntegrante;
             }
         }
 
@@ -431,6 +445,21 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         #endregion
 
         /// <summary>
+        /// Diccionario de datos, contiene las definiciones de las propiedades con su descripción.
+        /// </summary>
+        [JsonIgnore]
+        public Dictionary<string, string> DiccionarioDeDatos { get; set; }
+
+        /// <summary>
+        ///     Diccionario de calculos, contiene los calculos que son ejecutados durante la carga masiva.
+        /// </summary>
+        /// <value>
+        ///     Diccionario con los calculos de la carga masiva.
+        /// </value>
+        [JsonIgnore]
+        public Dictionary<string, string> DiccionarioDeCalculos { get; set; }
+
+        /// <summary>
         /// Gets the lista de elementos.
         /// </summary>
         public List<object> ListaDeElementos { get; private set; }
@@ -440,27 +469,54 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </summary>
         public List<MasivaF20> ListaElementosMasivos { get; set; }
 
+        /// <summary>
+        ///     Errores de las validaciones.
+        /// </summary>
+        [JsonIgnore]
+        public List<ErrorModel> Errores { get; set; }
+
         #endregion
 
         #region Public Methods and Operators
 
         /// <summary>
-        /// Crea la lista de elementos de carga masiva.
+        ///     Crea la lista de elementos de carga masiva.
         /// </summary>
         /// <param name="txt">
-        /// TxtReader a partir del archivo.
+        ///     TxtReader a partir del archivo.
         /// </param>
         /// <param name="registrosFiltrados">
-        /// registros filtrados.
+        ///     registros filtrados.
         /// </param>
-        public void CrearListaDeElementos(TxtReader txt, HashSet<string> registrosFiltrados)
+        /// <param name="ejercicio">
+        ///     Ejercicio de la declaración
+        /// </param>
+        public void CrearListaDeElementos(TxtReader txt, HashSet<string> registrosFiltrados, int? ejercicio = null)
         {
-            this.ListaElementosMasivos = txt.ReadVariableLength<MasivaF20>(
-                                                        registrosFiltrados.ToArray(),
-                                                        this.PrimeraLineaEsEncabezado,
-                                                        this.Separador,
-                                                        this.EliminarEspaciosEnBlanco);
+            var listaElementos = new List<MasivaF20>();
 
+            try
+            {
+                listaElementos = txt.ReadVariableLength<MasivaF20>(
+                                                            registrosFiltrados.ToArray(),
+                                                            this.PrimeraLineaEsEncabezado,
+                                                            this.Separador,
+                                                            this.EliminarEspaciosEnBlanco);
+
+                if (ejercicio != null)
+                {
+                    listaElementos.ForEach(l => l.Ejercicio = ejercicio.Value);
+                }
+            }
+            catch (DataTypeCreationException e)
+            {
+                var msjErr = e.Message;
+                msjErr = msjErr.Replace(e.NombrePropiedad, string.Format("<b>{0}</b>", this.DiccionarioDeDatos[e.NombrePropiedad]));
+
+                this.Errores.Add(new ErrorModel(msjErr));
+            }
+
+            this.ListaElementosMasivos = listaElementos;
             this.ListaDeElementos = new List<object>(this.ListaElementosMasivos);
         }
 
@@ -473,13 +529,23 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// <param name="subregimenes">
         /// SubRegimenes de la declaración
         /// </param>
+        /// <param name="valorDelAuxiliar">
+        ///     El valor del Auxiliar indica si al ejecutar los calculos seran para el borrado.
+        /// </param>
         /// <returns>
         /// Un diccionario con el resultado de los calculos
         /// </returns>
         public Dictionary<string, string> EjecutarCalculos(
             Dictionary<string, string> parametros,
-            HashSet<string> subregimenes)
+            HashSet<string> subregimenes,
+            string valorDelAuxiliar = "")
         {
+            const string SumaIsr = "SUMAMASAUXISR";
+
+            const string SumaImpac = "SUMAMASAUXIMPAC";
+
+            const string SumaIetu = "SUMAMASAUXIETU";
+
             var calculos = HelpersMasivas.EjecutarCalculos(
                                             this.ListaElementosMasivos,
                                             parametros,
@@ -487,49 +553,68 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
                                             this.ObtenerCalculos().ToArray(),
                                             this.AuxiliarNombre,
                                             this.AuxiliarValor);
-            return calculos;
-            //var dicCalcResult = new Dictionary<string, string>
-            //                        {
-            //                            { "SUMAAUXISR", "0" },
-            //                            { "SUMAAUXIMPAC", "0" },
-            //                            { "SUMAAUXIETU", "0" }
-            //                        };
 
+            calculos = calculos.Where(c => !c.Key.Contains("NoValido")).ToDictionary(d => d.Key, d => d.Value);
 
+            var dicCalcResult = new Dictionary<string, string>
+                                    {
+                                        { SumaIsr, "0" },
+                                        { SumaImpac, "0" },
+                                        { SumaIetu, "0" }
+                                    };
 
-            //var valorUno = calculos.Where(d => d.Value == "1").ToDictionary(d => d.Key, d => d.Value);
+            var elementoMasivo       = this.ListaElementosMasivos.FirstOrDefault();
+            var ejercicioDeclaracion = elementoMasivo == null ? DateTime.Today.Year : elementoMasivo.Ejercicio;
 
-            //var valorCero = calculos.Where(d => d.Value == "0").ToDictionary(d => d.Key, d => d.Value);
+            var calcSeccPago = calculos.Where(d => d.Value != "0" && d.Key != this.AuxiliarNombre).Select(n => n.Key).ToList();
 
-            //var valorUnoC7 = valorUno.FirstOrDefault(d => d.Key.Contains("C7"));
-            //var valorCeroC7 = valorCero.FirstOrDefault(d => d.Key.Contains("C7"));
+            if (calcSeccPago.Any())
+            {
+                if (calcSeccPago.Contains(C7IsrACargo) || calcSeccPago.Contains(C6IsrAFavor))
+                {
+                    dicCalcResult[SumaIsr] = "1";
+                }
 
-            //if (!string.IsNullOrEmpty(valorUnoC7.Key))
-            //{
-            //    this.ActualizarDiccResultados(valorUnoC7, dicCalcResult);
+                if (calcSeccPago.Contains(C7ImpacACargo) || calcSeccPago.Contains(C6ImpacAFavor))
+                {
+                    dicCalcResult[SumaImpac] = "1";
+                }
 
-            //    dicCalcResult.Add("C7", valorUnoC7.Value);
-            //}
-            //else if (!string.IsNullOrEmpty(valorCeroC7.Key))
-            //{
-            //    dicCalcResult.Add("C7", valorCeroC7.Value);
-            //}
+                if (calcSeccPago.Contains(C7IetuACargo) || calcSeccPago.Contains(C6IetuAFavor))
+                {
+                    dicCalcResult[SumaIetu] = "1";
+                }
 
-            //var valorUnoC6 = valorUno.FirstOrDefault(d => d.Key.Contains("C6"));
-            //var valorCeroC6 = valorCero.FirstOrDefault(d => d.Key.Contains("C6"));
+                foreach (var cr in dicCalcResult)
+                {
+                    if (cr.Key.Equals(SumaIsr))
+                    {
+                        calculos.Add(cr.Key, cr.Value);
+                    }
+                    else if (cr.Key.Equals(SumaImpac) && ejercicioDeclaracion <= 2007)
+                    {
+                        calculos.Add(cr.Key, cr.Value);
+                    }
+                    else if (cr.Key.Equals(SumaIetu) && ejercicioDeclaracion >= 2008)
+                    {
+                        calculos.Add(cr.Key, cr.Value);
+                    }
+                }
+            }
 
-            //if (!string.IsNullOrEmpty(valorUnoC6.Key))
-            //{
-            //    this.ActualizarDiccResultados(valorUnoC6, dicCalcResult);
+            this.DiccionarioDeCalculos = calculos;
 
-            //    dicCalcResult.Add("C6", valorUnoC6.Value);
-            //}
-            //else if (!string.IsNullOrEmpty(valorCeroC6.Key))
-            //{
-            //    dicCalcResult.Add("C6", valorCeroC6.Value);
-            //}
+            if (valorDelAuxiliar.Equals("0"))
+            {
+                foreach (var v in dicCalcResult)
+                {
+                    this.DiccionarioDeCalculos.Add(v.Key, v.Value);
+                }
 
-            //return dicCalcResult;
+                this.ReiniciarAuxiliares();
+            }
+
+            return this.DiccionarioDeCalculos;
         }
 
         /// <summary>
@@ -559,11 +644,29 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         public string EjecutarReglas(Dictionary<string, string> parametros, HashSet<string> subregimenes)
         {
-            return HelpersMasivas.GetAllErrorMessages(
+            string errorMsj;
+
+            if (this.Errores.Any())
+            {
+                var msjesError = new StringBuilder();
+
+                foreach (var error in this.Errores)
+                {
+                    msjesError.AppendFormat("{0} <br> <br>", error.Message);
+                }
+
+                errorMsj = msjesError.ToString();
+            }
+            else
+            {
+                errorMsj = HelpersMasivas.GetAllErrorMessages(
                                                     this.ListaElementosMasivos,
                                                     parametros,
                                                     subregimenes,
                                                     this.ObtenerReglas().ToArray());
+            }
+
+            return errorMsj;
         }
 
         /// <summary>
@@ -609,15 +712,17 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         public List<HelpersMasivas.Calculate<MasivaF20>> ObtenerCalculos()
         {
-            return new List<HelpersMasivas.Calculate<MasivaF20>>
-                       {
-                           //CalculoC6Isr,
-                           //CalculoC7Isr,
-                           //CalculoC6Impac,
-                           //CalculoC7Impac,
-                           //CalculoC6Ietu,
-                           //CalculoC7Ietu
-                       };
+            var listaCalculos = new List<HelpersMasivas.Calculate<MasivaF20>>
+                                    {
+                                        CalculoC6Isr,
+                                        CalculoC7Isr,
+                                        CalculoC6Impac,
+                                        CalculoC7Impac,
+                                        CalculoC6Ietu,
+                                        CalculoC7Ietu
+                                    };
+
+            return listaCalculos;
         }
 
         /// <summary>
@@ -650,34 +755,58 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             return new List<HelpersMasivas.Ruler<MasivaF20>> { ReglaRfcDuplicado };
         }
 
+        /// <summary>
+        /// Inicializa el diccionario de datos.
+        /// </summary>
+        public void InicializaDiccionarioDeDatos()
+        {
+            this.DiccionarioDeDatos = new Dictionary<string, string>
+                                          {
+                                              { "MAS205194", "RFC del integrante" },
+                                              { "MAS201307", "Utilidad gravable" },
+                                              { "MAS111175", "Pérdida fiscal" },
+                                              { "MAS111119", "ISR a cargo" },
+                                              { "MAS111159", "ISR a favor" },
+                                              { "MAS201025", "PTU por distribuir" },
+                                              { "MAS201041", "Valor del activo (base gravable)" },
+                                              { "MAS121105", "IMPAC a cargo" },
+                                              { "MAS121125", "IMPAC a favor" },
+                                              { "MAS195175", "Ingresos gravados para IETU" },
+                                              { "MAS195176", " Deducciones autorizadas para IETU" },
+                                              { "MAS195177", "Base gravable para IETU" },
+                                              { "MAS195178", "Deducciones que exceden a los ingresos" },
+                                              { "MAS195179", "IETU a cargo" },
+                                              { "MAS195180", "Impuesto Consolidado Del Ejercicio" }
+                                          };
+        }
+
+        /// <summary>
+        ///     Inicializa la lista de errores.
+        /// </summary>
+        public void InicializaListaDeErrores()
+        {
+            this.Errores = new List<ErrorModel>();
+        }
+
+        /// <summary>
+        ///     Reinicia los auxiliares de los calculos.
+        /// </summary>
+        public void ReiniciarAuxiliares()
+        {
+            if (this.DiccionarioDeCalculos.Any())
+            {
+                var dicAux =
+                    this.DiccionarioDeCalculos
+                        .Select((t, i) => this.DiccionarioDeCalculos.ElementAt(i))
+                        .ToDictionary(calculo => calculo.Key, calculo => "0");
+
+                this.DiccionarioDeCalculos = dicAux;
+            }
+        }
+
         #endregion
 
         #region Methods
-
-        /// <summary>
-        ///     Actualiza el diccionario de resultados para que se pueda ocultar correctamente las secciones del formulario.
-        /// </summary>
-        /// <param name="valorUno">
-        ///     Valor de la suma de conceptos que es igual a uno.
-        /// </param>
-        /// <param name="dicCalcResult">
-        ///     Diccionario de resultados que se va a actualizar.
-        /// </param>
-        private void ActualizarDiccResultados(KeyValuePair<string, string> valorUno, Dictionary<string, string> dicCalcResult)
-        {
-            if (valorUno.Key.Contains("Isr"))
-            {
-                dicCalcResult["SUMAAUXISR"] = "1";
-            }
-            else if (valorUno.Key.Contains("Impac"))
-            {
-                dicCalcResult["SUMAAUXIMPAC"] = "1";
-            }
-            else if (valorUno.Key.Contains("Ietu"))
-            {
-                dicCalcResult["SUMAAUXIETU"] = "1";
-            }
-        }
 
         #region Calculos
 
@@ -704,7 +833,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             HashSet<string> subregimenes)
         {
             var suma = entrada.Sum(x => x.MAS111119 ?? 0);
-            return new Tuple<string, string>("C7Isr", suma.ToString());
+            return new Tuple<string, string>(C7IsrACargo, suma.ToString());
         }
 
         /// <summary>
@@ -728,12 +857,15 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             HashSet<string> subregimenes)
         {
             var suma = entrada.Sum(x => x.MAS111159 ?? 0);
-            return new Tuple<string, string>("C6Isr", suma.ToString());
+            return new Tuple<string, string>(C6IsrAFavor, suma.ToString());
         }
 
         #endregion
 
         #region IMPAC
+
+        private const string C7ImpacNoValido = "C7ImpacNoValido";
+        private const string C6ImpacNoValido = "C6ImpacNoValido";
 
         /// <summary>
         ///     Calculo C7 A CARGO IMPUESTO AL ACTIVO. IMPUESTO DE LOS INTEGRANTES DE PERSONAS MORALES DEL RÉGIMEN SIMPLIFICADO.
@@ -755,8 +887,22 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             Dictionary<string, string> parametros,
             HashSet<string> subregimenes)
         {
-            var suma = entrada.Sum(x => x.MAS121105 ?? 0);
-            return new Tuple<string, string>("C7Impac", suma.ToString());
+            var calculo = new Tuple<string, string>(C7ImpacNoValido, "0");
+
+            if (entrada.Any())
+            {
+                var elementoMasivo = entrada.FirstOrDefault();
+
+                var ejercicioDeclaracion = elementoMasivo == null ? DateTime.Today.Year : elementoMasivo.Ejercicio;
+
+                if (ejercicioDeclaracion <= 2007)
+                {
+                    var suma = entrada.Sum(x => x.MAS121105 ?? 0);
+                    calculo = new Tuple<string, string>(C7ImpacACargo, suma.ToString());
+                }
+            }
+
+            return calculo;
         }
 
         /// <summary>
@@ -779,13 +925,30 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             Dictionary<string, string> parametros,
             HashSet<string> subregimenes)
         {
-            var suma = entrada.Sum(x => x.MAS121125 ?? 0);
-            return new Tuple<string, string>("C6Impac", suma.ToString());
+            var calculo = new Tuple<string, string>(C6ImpacNoValido, "0");
+
+            if (entrada.Any())
+            {
+                var elementoMasivo = entrada.FirstOrDefault();
+
+                var ejercicioDeclaracion = elementoMasivo == null ? DateTime.Today.Year : elementoMasivo.Ejercicio;
+
+                if (ejercicioDeclaracion <= 2007)
+                {
+                    var suma = entrada.Sum(x => x.MAS121125 ?? 0);
+                    calculo = new Tuple<string, string>(C6ImpacAFavor, suma.ToString());
+                }
+            }
+
+            return calculo;
         }
 
         #endregion
 
         #region IETU A CARGO / IMPUESTO CONSOLIDADO DEL EJERCICIO
+
+        private const string C7IetuNoValido = "C7IetuNoValido";
+        private const string C6IetucNoValido = "C6IetucNoValido";
 
         /// <summary>
         ///     Calculo C7 A CARGO IETU IMPUESTO DE LOS INTEGRANTES DE PERSONAS  MORALES. RÉGIMEN SIMPLIFICADO.
@@ -807,8 +970,22 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             Dictionary<string, string> parametros,
             HashSet<string> subregimenes)
         {
-            var suma = entrada.Sum(x => x.MAS195179 ?? 0);
-            return new Tuple<string, string>("C7Ietu", suma.ToString());
+            var calculo = new Tuple<string, string>(C7IetuNoValido, "0");
+
+            if (entrada.Any())
+            {
+                var elementoMasivo = entrada.FirstOrDefault();
+
+                var ejercicioDeclaracion = elementoMasivo == null ? DateTime.Today.Year : elementoMasivo.Ejercicio;
+
+                if (ejercicioDeclaracion >= 2008)
+                {
+                    var suma = entrada.Sum(x => x.MAS195179 ?? 0);
+                    calculo = new Tuple<string, string>(C7IetuACargo, suma.ToString());
+                }
+            }
+
+            return calculo;
         }
 
         /// <summary>
@@ -831,8 +1008,22 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             Dictionary<string, string> parametros,
             HashSet<string> subregimenes)
         {
-            var suma = entrada.Sum(x => x.MAS195180 ?? 0);
-            return new Tuple<string, string>("C6Ietu", suma.ToString());
+            var calculo = new Tuple<string, string>(C6IetucNoValido, "0");
+
+            if (entrada.Any())
+            {
+                var elementoMasivo = entrada.FirstOrDefault();
+
+                var ejercicioDeclaracion = elementoMasivo == null ? DateTime.Today.Year : elementoMasivo.Ejercicio;
+
+                if (ejercicioDeclaracion >= 2008)
+                {
+                    var suma = entrada.Sum(x => x.MAS195180 ?? 0);
+                    calculo = new Tuple<string, string>(C6IetuAFavor, suma.ToString());
+                }
+            }
+
+            return calculo;
         }
 
         #endregion
@@ -869,6 +1060,15 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
 
         #endregion
 
+        /// <summary>
+        /// Inicializas the campos.
+        /// </summary>
+        private void InicializaCampos()
+        {
+            this.ObtenerNombreAuxiliar();
+            this.InicializaDiccionarioDeDatos();
+            this.InicializaListaDeErrores();
+        }
         #endregion
     }
 }

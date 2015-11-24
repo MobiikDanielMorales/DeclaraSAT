@@ -14,11 +14,13 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Text;
 
     using Newtonsoft.Json;
 
     using Sat.DeclaracionesAnuales.Attributes;
     using Sat.DeclaracionesAnuales.CargaMasiva.Models.Base;
+    using Sat.DeclaracionesAnuales.Exeptions;
     using Sat.DeclaracionesAnuales.TxtReader;
 
     #endregion
@@ -28,6 +30,13 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
     /// </summary>
     public class MasivaF24 : InformacionIntegrantesF24, IMasiva, IMasivaExtraccion<MasivaF24>
     {
+        #region Constants
+
+        private const string C7IsrACargo = "SUMA219561";
+        private const string C6IsrAFavor = "SUMA219562";
+
+        #endregion
+
         #region Fields
 
         /// <summary>
@@ -79,7 +88,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </summary>
         public MasivaF24()
         {
-            this.ObtenerNombreAuxiliar();
+            this.InicializaCampos();
         }
 
         /// <summary>
@@ -89,7 +98,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         public MasivaF24(string auxiliarValor)
             : base(auxiliarValor)
         {
-            this.ObtenerNombreAuxiliar();
+            this.InicializaCampos();
         }
 
         #endregion
@@ -106,12 +115,35 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// <summary>
         ///     Lista de elementos de carga masiva.
         /// </summary>
+        [JsonIgnore]
         public List<object> ListaDeElementos { get; private set; }
 
         /// <summary>
         ///     Lista de elementos de carga masiva.
         /// </summary>
+        [JsonIgnore]
         public List<MasivaF24> ListaElementosMasivos { get; set; }
+
+        /// <summary>
+        ///     Diccionario de datos, contiene las definiciones de las propiedades con su descripción.
+        /// </summary>
+        [JsonIgnore]
+        public Dictionary<string, string> DiccionarioDeDatos { get; set; }
+
+        /// <summary>
+        ///     Diccionario de calculos, contiene los calculos que son ejecutados durante la carga masiva.
+        /// </summary>
+        /// <value>
+        ///     Diccionario con los calculos de la carga masiva.
+        /// </value>
+        [JsonIgnore]
+        public Dictionary<string, string> DiccionarioDeCalculos { get; set; }
+
+        /// <summary>
+        ///     Errores de las validaciones.
+        /// </summary>
+        [JsonIgnore]
+        public List<ErrorModel> Errores { get; set; }
 
         /// <summary>
         /// RFC del integrante
@@ -126,9 +158,9 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
 
             set
             {
-                this.mas219556 = value;
+                this.mas219556        = value.ToUpper();
                 this.RfcDelIntegrante = this.mas219556;
-                this.Rfc = this.RfcDelIntegrante;
+                this.Rfc              = this.RfcDelIntegrante;
             }
         }
 
@@ -281,22 +313,43 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         #region Public Methods and Operators
 
         /// <summary>
-        /// Crea la lista de elementos de carga masiva.
+        ///     Crea la lista de elementos de carga masiva.
         /// </summary>
         /// <param name="txt">
-        /// TxtReader a partir del archivo.
+        ///     TxtReader a partir del archivo.
         /// </param>
         /// <param name="registrosFiltrados">
-        /// registros filtrados.
+        ///     registros filtrados.
         /// </param>
-        public void CrearListaDeElementos(TxtReader txt, HashSet<string> registrosFiltrados)
+        /// <param name="ejercicio">
+        ///     Ejercicio de la declaración
+        /// </param>
+        public void CrearListaDeElementos(TxtReader txt, HashSet<string> registrosFiltrados, int? ejercicio = null)
         {
-            this.ListaElementosMasivos = txt.ReadVariableLength<MasivaF24>(
-                registrosFiltrados.ToArray(),
-                this.PrimeraLineaEsEncabezado,
-                this.Separador,
-                this.EliminarEspaciosEnBlanco);
+            var listaElementos = new List<MasivaF24>();
 
+            try
+            {
+                listaElementos = txt.ReadVariableLength<MasivaF24>(
+                                                        registrosFiltrados.ToArray(),
+                                                        this.PrimeraLineaEsEncabezado,
+                                                        this.Separador,
+                                                        this.EliminarEspaciosEnBlanco);
+
+                if (ejercicio != null)
+                {
+                    listaElementos.ForEach(l => l.Ejercicio = ejercicio.Value);
+                }
+            }
+            catch (DataTypeCreationException e)
+            {
+                var msjErr = e.Message;
+                msjErr = msjErr.Replace(e.NombrePropiedad, string.Format("<b>{0}</b>", this.DiccionarioDeDatos[e.NombrePropiedad]));
+
+                this.Errores.Add(new ErrorModel(msjErr));
+            }
+
+            this.ListaElementosMasivos = listaElementos;
             this.ListaDeElementos = new List<object>(this.ListaElementosMasivos);
         }
 
@@ -309,20 +362,31 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// <param name="subregimenes">
         /// SubRegimenes de la declaración
         /// </param>
+        /// <param name="valorDelAuxiliar">
+        ///     El valor del Auxiliar indica si al ejecutar los calculos seran para el borrado.
+        /// </param>
         /// <returns>
         /// Un diccionario con el resultado de los calculos
         /// </returns>
         public Dictionary<string, string> EjecutarCalculos(
             Dictionary<string, string> parametros,
-            HashSet<string> subregimenes)
+            HashSet<string> subregimenes,
+            string valorDelAuxiliar = "")
         {
-            return HelpersMasivas.EjecutarCalculos(
+            this.DiccionarioDeCalculos = HelpersMasivas.EjecutarCalculos(
                                         this.ListaElementosMasivos,
                                         parametros,
                                         subregimenes,
                                         this.ObtenerCalculos().ToArray(),
                                         this.AuxiliarNombre,
                                         this.AuxiliarValor);
+
+            if (valorDelAuxiliar.Equals("0"))
+            {
+                this.ReiniciarAuxiliares();
+            }
+
+            return this.DiccionarioDeCalculos;
         }
 
         /// <summary>
@@ -352,11 +416,29 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         public string EjecutarReglas(Dictionary<string, string> parametros, HashSet<string> subregimenes)
         {
-            return HelpersMasivas.GetAllErrorMessages(
-                                                this.ListaElementosMasivos,
-                                                parametros,
-                                                subregimenes,
-                                                this.ObtenerReglas().ToArray());
+            string errorMsj;
+
+            if (this.Errores.Any())
+            {
+                var msjesError = new StringBuilder();
+
+                foreach (var error in this.Errores)
+                {
+                    msjesError.AppendFormat("{0} <br> <br>", error.Message);
+                }
+
+                errorMsj = msjesError.ToString();
+            }
+            else
+            {
+                errorMsj = HelpersMasivas.GetAllErrorMessages(
+                                                    this.ListaElementosMasivos,
+                                                    parametros,
+                                                    subregimenes,
+                                                    this.ObtenerReglas().ToArray());
+            }
+
+            return errorMsj;
         }
 
         /// <summary>
@@ -397,8 +479,8 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         {
             return new List<HelpersMasivas.Calculate<MasivaF24>>
                        {
-                           //CalculoC6,
-                           //CalculoC7
+                           CalculoC6,
+                           CalculoC7
                        };
         }
 
@@ -432,6 +514,48 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             return new List<HelpersMasivas.Ruler<MasivaF24>> { ReglaRfcDuplicado };
         }
 
+        /// <summary>
+        ///     Inicializa el diccionario de datos.
+        /// </summary>
+        public void InicializaDiccionarioDeDatos()
+        {
+            this.DiccionarioDeDatos = new Dictionary<string, string>
+                                          {
+                                              { "MAS219556", "RFC del integrante" },
+                                              { "MAS219557", "Utilidad gravable" },
+                                              { "MAS219558", "Pérdida fiscal" },
+                                              { "MAS219559", "Impuesto sobre la renta del ejercicio" },
+                                              { "MAS219560", "Pagos provisionales efectuados por el coordinado" },
+                                              { "MAS219561", "ISR a cargo del ejercicio" },
+                                              { "MAS219562", "ISR a favor del ejercicio" },
+                                              { "MAS219563", "PTU por distribuir" }
+                                          };
+        }
+
+        /// <summary>
+        ///     Inicializa la lista de errores.
+        /// </summary>
+        public void InicializaListaDeErrores()
+        {
+            this.Errores = new List<ErrorModel>();
+        }
+
+        /// <summary>
+        ///     Reinicia los auxiliares de los calculos.
+        /// </summary>
+        public void ReiniciarAuxiliares()
+        {
+            if (this.DiccionarioDeCalculos.Any())
+            {
+                var dicAux =
+                    this.DiccionarioDeCalculos
+                        .Select((t, i) => this.DiccionarioDeCalculos.ElementAt(i))
+                        .ToDictionary(calculo => calculo.Key, calculo => "0");
+
+                this.DiccionarioDeCalculos = dicAux;
+            }
+        }
+
         #endregion
 
         #region Methods
@@ -459,7 +583,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             HashSet<string> subregimenes)
         {
             var suma = entrada.Sum(x => x.MAS219561 ?? 0);
-            return new Tuple<string, string>("C7", suma.ToString());
+            return new Tuple<string, string>(C7IsrACargo, suma.ToString());
         }
 
         /// <summary>
@@ -483,7 +607,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             HashSet<string> subregimenes)
         {
             var suma = entrada.Sum(x => x.MAS219562 ?? 0);
-            return new Tuple<string, string>("C6", suma.ToString());
+            return new Tuple<string, string>(C6IsrAFavor, suma.ToString());
         }
 
         #endregion
@@ -514,6 +638,16 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         }
 
         #endregion
+
+        /// <summary>
+        /// Inicializas the campos.
+        /// </summary>
+        private void InicializaCampos()
+        {
+            this.ObtenerNombreAuxiliar();
+            this.InicializaDiccionarioDeDatos();
+            this.InicializaListaDeErrores();
+        }
 
         #endregion
     }

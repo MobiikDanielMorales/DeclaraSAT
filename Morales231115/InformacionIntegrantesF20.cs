@@ -13,7 +13,9 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
 
     using System.Collections.Generic;
     using System.Linq;
-    using System.Text;
+
+    using hp = HelpersMasivas;
+    using resx = RecursosMasivaMorales;
 
     #endregion
 
@@ -89,14 +91,83 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </summary>
         protected long? ValorDelActivo { get; set; }
 
-        /// <summary>
-        /// Ejercicio de la declaración.
-        /// </summary>
-        protected long Ejercicio { get; set; }
-
         #endregion
 
         #region Methods
+
+        /// <summary>
+        ///     Valida el campo ISR a favor del ejercicio.
+        /// </summary>
+        /// <returns>
+        ///     Lista de ErrorModel
+        /// </returns>
+        protected override List<ErrorModel> ValidarIsrAFavorDelEjercicio()
+        {
+            var erroresIsrAFavorDelEjercicio = new List<ErrorModel>();
+
+            if (this.IsrAFavorDelEjercicio != null)
+            {
+                var validarEnteroPositivo = this.ErrorValidacionEnteroPositivo(
+                                                            resx.IsrAFavorDelEjercicio,
+                                                            this.IsrAFavorDelEjercicio);
+
+                if (validarEnteroPositivo != null)
+                {
+                    erroresIsrAFavorDelEjercicio.Add(validarEnteroPositivo);
+                }
+
+                var validarLongitud = this.ErrorLongitud(resx.IsrAFavorDelEjercicio, this.IsrAFavorDelEjercicio, 0, 12);
+
+                if (validarLongitud != null)
+                {
+                    erroresIsrAFavorDelEjercicio.Add(validarLongitud);
+                }
+
+                if (
+                    hp.MutuamenteExcluyentes(
+                        hp.ValorEsMayorIgualAcero(this.IsrAFavorDelEjercicio),
+                        this.IsrACargoDelEjercicio == null))
+                {
+                    erroresIsrAFavorDelEjercicio.Add(this.Error(
+                                resx.SiPropEsMayorIgualCero.Replace("@Propiedad", resx.IsrAFavorDelEjercicio),
+                                resx.LaPropDebeSerNula.Replace("@Propiedad", resx.IsrACargoDelEjercicio)));
+                }
+            }
+
+            return erroresIsrAFavorDelEjercicio;
+        }
+
+        /// <summary>
+        ///     Valida el campo PTU por distribuir.
+        /// </summary>
+        /// <returns>
+        ///     Lista de ErrorModel
+        /// </returns>
+        protected override List<ErrorModel> ValidarPtuPorDistribuir()
+        {
+            var erroresPtuPorDistribuir = new List<ErrorModel>();
+
+            if (this.PtuPorDistribuir != null)
+            {
+                var validarEnteroPositivo = this.ErrorValidacionEnteroPositivo(
+                                                                resx.PtuPorDistribuir,
+                                                                this.PtuPorDistribuir);
+
+                if (validarEnteroPositivo != null)
+                {
+                    erroresPtuPorDistribuir.Add(validarEnteroPositivo);
+                }
+
+                var validarLongitud = this.ErrorLongitud(resx.PtuPorDistribuir, this.PtuPorDistribuir, 0, 12);
+
+                if (validarLongitud != null)
+                {
+                    erroresPtuPorDistribuir.Add(validarLongitud);
+                }
+            }
+
+            return erroresPtuPorDistribuir;
+        }
 
         /// <summary>
         ///     Valida el campo Base Gravable IETU.
@@ -106,24 +177,21 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         protected List<ErrorModel> ValidarBaseGravableIetu()
         {
-            const string NombrePropiedad = "Base gravable para IETU";
-
             var erroresBaseGravableIetu = new List<ErrorModel>();
 
             if (this.BaseGravableParaIetu != null)
             {
-                erroresBaseGravableIetu = this.ValidarCampoDosMilOcho(this.BaseGravableParaIetu, NombrePropiedad);
+                erroresBaseGravableIetu = this.ValidarCampoDosMilOcho(this.BaseGravableParaIetu, resx.BaseGravableParaIetu);
 
                 if (
                     HelpersMasivas.MutuamenteExcluyentes(
-                        HelpersMasivas.ValorEsMayorIgualAcero(this.BaseGravableParaIetu),
-                        this.DeduccionesQueExcedenALosIngresos == null))
+                                            HelpersMasivas.ValorEsMayorIgualAcero(this.BaseGravableParaIetu),
+                                            this.DeduccionesQueExcedenALosIngresos == null) &&
+                        this.Ejercicio >= 2008)
                 {
-                    var msjErr = new StringBuilder();
-                    msjErr.Append("Linea {0:#,###}: Si La <b>{1}</b> es mayor o igual a cero ");
-                    msjErr.Append("las Deducciones que exceden a los ingresos no deben estar presentes");
-
-                    erroresBaseGravableIetu.Add(new ErrorModel(msjErr.ToString(), this.Indice, NombrePropiedad));
+                    erroresBaseGravableIetu.Add(this.Error(
+                                resx.SiPropEsMayorIgualCero.Replace("@Propiedad", resx.BaseGravableParaIetu),
+                                resx.LaPropDebeSerNula.Replace("@Propiedad", resx.DeduccionesQueExcedenALosIngresos)));
                 }
             }
 
@@ -138,15 +206,13 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         protected List<ErrorModel> ValidarDeduccAutorizIetu()
         {
-            const string NombrePropiedad = "Deducciones autorizadas para IETU";
-
             var erroresDeduccAutorizIetu = new List<ErrorModel>();
 
             if (this.DeduccionesAutorizadasParaIetu != null)
             {
                 erroresDeduccAutorizIetu = this.ValidarCampoDosMilOcho(
                                                 this.DeduccionesAutorizadasParaIetu,
-                                                NombrePropiedad);
+                                                resx.DeduccionesAutorizadasParaIetu);
             }
 
             return erroresDeduccAutorizIetu;
@@ -160,26 +226,22 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         protected List<ErrorModel> ValidarDeduccExcedenIngresos()
         {
-            const string NombrePropiedad = "Deducciones que exceden a los ingresos";
-
             var erroresDeduccExcedenIngresos = new List<ErrorModel>();
 
             if (this.DeduccionesQueExcedenALosIngresos != null)
             {
                 erroresDeduccExcedenIngresos = this.ValidarCampoDosMilOcho(
-                    this.DeduccionesQueExcedenALosIngresos,
-                    NombrePropiedad);
+                                                        this.DeduccionesQueExcedenALosIngresos,
+                                                        resx.DeduccionesQueExcedenALosIngresos);
 
                 if (
                     HelpersMasivas.MutuamenteExcluyentes(
                         HelpersMasivas.ValorEsMayorIgualAcero(this.DeduccionesQueExcedenALosIngresos),
                         this.BaseGravableParaIetu == null))
                 {
-                    var msjErr = new StringBuilder();
-                    msjErr.Append("Linea {0:#,###}: Si Las <b>{1}</b> son mayores o iguales a cero ");
-                    msjErr.Append("la Base gravable para IETU no debe estar presente");
-
-                    erroresDeduccExcedenIngresos.Add(new ErrorModel(msjErr.ToString(), this.Indice, NombrePropiedad));
+                    erroresDeduccExcedenIngresos.Add(this.Error(
+                                resx.SiPropEsMayorIgualCero.Replace("@Propiedad", resx.DeduccionesQueExcedenALosIngresos),
+                                resx.LaPropDebeSerNula.Replace("@Propiedad", resx.BaseGravableParaIetu)));
                 }
             }
 
@@ -194,23 +256,19 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         protected List<ErrorModel> ValidarIetuCargo()
         {
-            const string NombrePropiedad = "IETU a cargo";
-
             var erroresIetuCargo = new List<ErrorModel>();
 
             if (this.IetuACargo != null)
             {
-                erroresIetuCargo = this.ValidarCampoDosMilOcho(this.IetuACargo, NombrePropiedad);
+                erroresIetuCargo = this.ValidarCampoDosMilOcho(this.IetuACargo, resx.IetuACargo);
 
                 if (HelpersMasivas.MutuamenteExcluyentes(
                     HelpersMasivas.ValorEsMayorIgualAcero(this.IetuACargo),
                     this.ImpuestoConsolidadoDelEjercicio == null))
                 {
-                    var msjErr = new StringBuilder();
-                    msjErr.Append("Linea {0:#,###}: Si el <b>{1}</b> es mayor o igual a cero ");
-                    msjErr.Append("el Impuesto Consolidado Del Ejercicio no debe estar presente");
-
-                    erroresIetuCargo.Add(new ErrorModel(msjErr.ToString(), this.Indice, NombrePropiedad));
+                    erroresIetuCargo.Add(this.Error(
+                                            resx.SiPropEsMayorIgualCero.Replace("@Propiedad", resx.IetuACargo),
+                                            resx.LaPropDebeSerNula.Replace("@Propiedad", resx.ImpuestoConsolidadoDelEjercicio)));
                 }
             }
 
@@ -225,13 +283,11 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         protected List<ErrorModel> ValidarImpacACargo()
         {
-            const string NombrePropiedad = "IMPAC a Cargo";
-
             var erroresImpacCargo = new List<ErrorModel>();
 
             if (this.ImpacACargo != null)
             {
-                var errors = this.ValidarCampoDosMilSiete(this.ImpacACargo, NombrePropiedad);
+                var errors = this.ValidarCampoDosMilSiete(this.ImpacACargo, resx.ImpacACargo);
 
                 var huboErrores = errors.Any();
 
@@ -244,14 +300,9 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
                                                     HelpersMasivas.ValorEsMayorIgualAcero(this.ImpacACargo),
                                                     this.ImpacAFavor == null))
                 {
-                    var msjErr = new StringBuilder();
-
-                    msjErr.Append("Linea {0:#,###}: Si el <b>{1}</b> es mayor igual a cero, ");
-                    msjErr.Append("el IMPAC a Favor debe ser nulo");
-
-                    var err = new ErrorModel(msjErr.ToString(), this.Indice, NombrePropiedad);
-
-                    erroresImpacCargo.Add(err);
+                    erroresImpacCargo.Add(this.Error(
+                                resx.SiPropEsMayorIgualCero.Replace("@Propiedad", resx.ImpacACargo),
+                                resx.LaPropDebeSerNula.Replace("@Propiedad", resx.ImpacAFavor)));
                 }
             }
 
@@ -266,13 +317,11 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         protected List<ErrorModel> ValidarImpacAFavor()
         {
-            const string NombrePropiedad = "IMPAC a Favor";
-
             var erroresImpacFavor = new List<ErrorModel>();
 
             if (this.ImpacAFavor != null)
             {
-                var errors = this.ValidarCampoDosMilSiete(this.ImpacAFavor, NombrePropiedad);
+                var errors = this.ValidarCampoDosMilSiete(this.ImpacAFavor, resx.ImpacAFavor);
 
                 var huboErrores = errors.Any();
 
@@ -285,14 +334,9 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
                         HelpersMasivas.ValorEsMayorIgualAcero(this.ImpacAFavor),
                         this.ImpacACargo == null))
                 {
-                    var msjErr = new StringBuilder();
-
-                    msjErr.Append("Linea {0:#,###}: Si el <b>{1}</b> es mayor igual a cero, ");
-                    msjErr.Append("el IMPAC a Cargo debe ser nulo");
-
-                    var err = new ErrorModel(msjErr.ToString(), this.Indice, NombrePropiedad);
-
-                    erroresImpacFavor.Add(err);
+                    erroresImpacFavor.Add(this.Error(
+                                resx.SiPropEsMayorIgualCero.Replace("@Propiedad", resx.ImpacAFavor),
+                                resx.LaPropDebeSerNula.Replace("@Propiedad", resx.ImpacACargo)));
                 }
             }
 
@@ -307,26 +351,22 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         protected List<ErrorModel> ValidarImpuestoConsolidadoEjercicio()
         {
-            const string NombrePropiedad = "Impuesto Consolidado Del Ejercicio";
-
             var erroresImpuestoConsolidadoEjercicio = new List<ErrorModel>();
 
             if (this.ImpuestoConsolidadoDelEjercicio != null)
             {
                 erroresImpuestoConsolidadoEjercicio = this.ValidarCampoDosMilOcho(
                                                     this.ImpuestoConsolidadoDelEjercicio,
-                                                    NombrePropiedad);
+                                                    resx.ImpuestoConsolidadoDelEjercicio);
 
                 if (
                     HelpersMasivas.MutuamenteExcluyentes(
                         HelpersMasivas.ValorEsMayorIgualAcero(this.ImpuestoConsolidadoDelEjercicio),
                         this.IetuACargo == null))
                 {
-                    var msjErr = new StringBuilder();
-                    msjErr.Append("Linea {0:#,###}: Si el <b>{1}</b> es mayor o igual a cero ");
-                    msjErr.Append("el IETU a cargo no debe estar presente");
-
-                    erroresImpuestoConsolidadoEjercicio.Add(new ErrorModel(msjErr.ToString(), this.Indice, NombrePropiedad));
+                    erroresImpuestoConsolidadoEjercicio.Add(this.Error(
+                                resx.SiPropEsMayorIgualCero.Replace("@Propiedad", resx.ImpuestoConsolidadoDelEjercicio),
+                                resx.LaPropDebeSerNula.Replace("@Propiedad", resx.IetuACargo)));
                 }
             }
 
@@ -341,13 +381,11 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         protected List<ErrorModel> ValidarIngresoGravIetu()
         {
-            const string NombrePropiedad = "Ingresos gravados para IETU";
-
             var erroresIngresoGravIetu = new List<ErrorModel>();
 
             if (this.IngresosGravadosParaIetu != null)
             {
-                erroresIngresoGravIetu = this.ValidarCampoDosMilOcho(this.IngresosGravadosParaIetu, NombrePropiedad);
+                erroresIngresoGravIetu = this.ValidarCampoDosMilOcho(this.IngresosGravadosParaIetu, resx.IngresosGravadosParaIetu);
             }
 
             return erroresIngresoGravIetu;
@@ -361,13 +399,11 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         protected List<ErrorModel> ValidarValorDelActivo()
         {
-            const string NombrePropiedad = "Valor Del Activo";
-
             var erroresValorActivo = new List<ErrorModel>();
 
             if (this.ValorDelActivo != null)
             {
-                erroresValorActivo = this.ValidarCampoDosMilSiete(this.ValorDelActivo, NombrePropiedad);
+                erroresValorActivo = this.ValidarCampoDosMilSiete(this.ValorDelActivo, resx.ValorDelActivo);
             }
 
             return erroresValorActivo;
@@ -379,52 +415,15 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// <param name="valor">
         ///     Valor a evaluar.
         /// </param>
-        /// <param name="nombrePropiedad">
+        /// <param name="propiedad">
         ///     Nombre de la propiedad que se evalua.
         /// </param>
         /// <returns>
         ///     Lista de ErrorModel
         /// </returns>
-        private List<ErrorModel> ValidarCampoDosMilOcho(long? valor, string nombrePropiedad)
+        private List<ErrorModel> ValidarCampoDosMilOcho(long? valor, string propiedad)
         {
-            var errores = new List<ErrorModel>();
-
-            var validarEjercicio = this.ValidarEjercicioDosMilOcho(valor, nombrePropiedad);
-
-            if (validarEjercicio != null)
-            {
-                errores.Add(validarEjercicio);
-            }
-
-            if (!errores.Any() && valor != null)
-            {
-                var validarEnteroPositivo = HelpersMasivas.ValidarEnteroPositivo(
-                    valor,
-                    "Linea {0:#,###}: El <b>@NombrePropiedad</b> debe ser un valor entero mayor o igual que cero.".Replace("@NombrePropiedad", nombrePropiedad),
-                    this.Indice);
-
-                if (validarEnteroPositivo != null)
-                {
-                    errores.Add(validarEnteroPositivo);
-                }
-
-                var longMin = 0;
-                var longMax = 12;
-
-                var validarLongitud = HelpersMasivas.ValidarLongitud(
-                    valor,
-                    longMin,
-                    longMax,
-                    "Linea {0:#,###}: El <b>@NombrePropiedad</b> debe tener una longitud entre 0 y 12 caracteres.".Replace("@NombrePropiedad", nombrePropiedad),
-                    this.Indice);
-
-                if (validarLongitud != null)
-                {
-                    errores.Add(validarLongitud);
-                }
-            }
-
-            return errores;
+            return this.ValidarCampoFormulario24(valor, propiedad, 2008);
         }
 
         /// <summary>
@@ -433,17 +432,32 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// <param name="valor">
         ///     Valor a evaluar.
         /// </param>
-        /// <param name="nombrePropiedad">
+        /// <param name="propiedad">
         ///     Nombre de la propiedad que se evalua.
         /// </param>
         /// <returns>
         ///     Lista de ErrorModel
         /// </returns>
-        private List<ErrorModel> ValidarCampoDosMilSiete(long? valor, string nombrePropiedad)
+        private List<ErrorModel> ValidarCampoDosMilSiete(long? valor, string propiedad)
+        {
+            return this.ValidarCampoFormulario24(valor, propiedad, 2007);
+        }
+
+        private List<ErrorModel> ValidarCampoFormulario24(long? valor, string propiedad, int ejercicio)
         {
             var errores = new List<ErrorModel>();
 
-            var validarEjercicio = this.ValidarEjercicioDosMilSiete(valor, nombrePropiedad);
+            ErrorModel validarEjercicio = null;
+
+            switch (ejercicio)
+            {
+                case 2007:
+                    validarEjercicio = this.ValidarEjercicioDosMilSiete(valor, propiedad);
+                    break;
+                case 2008:
+                    validarEjercicio = this.ValidarEjercicioDosMilOcho(valor, propiedad);
+                    break;
+            }
 
             if (validarEjercicio != null)
             {
@@ -452,25 +466,14 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
 
             if (!errores.Any() && valor != null)
             {
-                var validarEnteroPositivo = HelpersMasivas.ValidarEnteroPositivo(
-                    valor,
-                    "Linea {0:#,###}: El <b>@NombrePropiedad</b> debe ser un valor entero mayor o igual que cero.".Replace("@NombrePropiedad", nombrePropiedad),
-                    this.Indice);
+                var validarEnteroPositivo = this.ErrorValidacionEnteroPositivo(propiedad, valor);
 
                 if (validarEnteroPositivo != null)
                 {
                     errores.Add(validarEnteroPositivo);
                 }
 
-                var longMin = 0;
-                var longMax = 12;
-
-                var validarLongitud = HelpersMasivas.ValidarLongitud(
-                    valor,
-                    longMin,
-                    longMax,
-                    "Linea {0:#,###}: El <b>@NombrePropiedad</b> debe tener una longitud entre 0 y 12 caracteres.".Replace("@NombrePropiedad", nombrePropiedad),
-                    this.Indice);
+                var validarLongitud = this.ErrorLongitud(propiedad, valor, 0, 12);
 
                 if (validarLongitud != null)
                 {
@@ -501,22 +504,12 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
 
             if (this.Ejercicio >= EjercicioValidar && valor == null)
             {
-                error =
-                    new ErrorModel(
-                        string.Format(
-                            "Linea {0:#,###}: <b>{1}</b> es requerido para ejercicios 2008 y posteriores",
-                            this.Indice,
-                            nombrePropiedad));
+                error = this.ErrorRequeridoParaElEjercicio(nombrePropiedad, EjercicioValidar);
             }
 
             if (this.Ejercicio < EjercicioValidar && valor != null)
             {
-                error =
-                    new ErrorModel(
-                        string.Format(
-                            "Linea {0:#,###}: <b>{1}</b> Sólo aplica para ejercicios 2008 y posteriores",
-                            this.Indice,
-                            nombrePropiedad));
+                error = this.ErrorSoloAplicaParaElEjercicio(nombrePropiedad, EjercicioValidar);
             }
 
             return error;
@@ -542,25 +535,33 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
 
             if (this.Ejercicio <= EjercicioValidar && valor == null)
             {
-                error =
-                    new ErrorModel(
-                        string.Format(
-                            "Linea {0:#,###}: <b>{1}</b> es requerido para ejercicios 2007 y anteriores",
-                            this.Indice,
-                            nombrePropiedad));
+                error = this.ErrorRequeridoParaElEjercicio(nombrePropiedad, EjercicioValidar, true);
             }
 
             if (this.Ejercicio > EjercicioValidar && valor != null)
             {
-                error =
-                    new ErrorModel(
-                        string.Format(
-                            "Linea {0:#,###}: <b>{1}</b> Sólo aplica para ejercicios 2007 y anteriores",
-                            this.Indice,
-                            nombrePropiedad));
+                error = this.ErrorSoloAplicaParaElEjercicio(nombrePropiedad, EjercicioValidar, true);
             }
 
             return error;
+        }
+
+        private ErrorModel ErrorRequeridoParaElEjercicio(string propiedad, int ejercicio, bool anterior = false)
+        {
+            var antPos = anterior ? "anteriores" : "posteriores";
+
+            var msjError = string.Format("{0} para ejercicios {1} y {2}.", resx.Requerido, ejercicio, antPos);
+
+            return this.Error(propiedad, msjError);
+        }
+
+        private ErrorModel ErrorSoloAplicaParaElEjercicio(string propiedad, int ejercicio, bool anterior = false)
+        {
+            var antPos = anterior ? "anteriores" : "posteriores";
+
+            var msjError = string.Format("Sólo aplica para ejercicios {0} y {1}", ejercicio, antPos);
+
+            return this.Error(propiedad, msjError);
         }
 
         #endregion

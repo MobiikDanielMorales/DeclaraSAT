@@ -14,11 +14,13 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Text;
 
     using Newtonsoft.Json;
 
     using Sat.DeclaracionesAnuales.Attributes;
     using Sat.DeclaracionesAnuales.CargaMasiva.Models.Base;
+    using Sat.DeclaracionesAnuales.Exeptions;
     using Sat.DeclaracionesAnuales.TxtReader;
 
     #endregion
@@ -28,6 +30,13 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
     /// </summary>
     public class MasivaF25 : InformacionIntegrantesF25, IMasiva, IMasivaExtraccion<MasivaF25>
     {
+        #region Constants
+
+        private const string C7IsrACargo = "SUMA219783";
+        private const string C6IsrAFavor = "SUMA219784";
+
+        #endregion
+
         #region Fields
 
         /// <summary>
@@ -109,7 +118,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </summary>
         public MasivaF25()
         {
-            this.ObtenerNombreAuxiliar();
+            this.InicializaCampos();
         }
 
         /// <summary>
@@ -119,7 +128,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         public MasivaF25(string auxiliarValor)
             : base(auxiliarValor)
         {
-            this.ObtenerNombreAuxiliar();
+            this.InicializaCampos();
         }
 
         #endregion
@@ -166,13 +175,14 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
 
             set
             {
-                this.mas219778 = value;
+                this.mas219778        = value.ToUpper();
                 this.RfcDelIntegrante = this.mas219778;
+                this.Rfc              = this.RfcDelIntegrante;
             }
         }
 
         /// <summary>
-        /// UTILIDAD GRAVABLE
+        /// Utilidad gravable
         /// </summary>
         [TxtReader(3)]
         public long? MAS219779
@@ -190,7 +200,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         }
 
         /// <summary>
-        /// PÉRDIDA FISCAL
+        /// Pérdida fiscal
         /// </summary>
         [TxtReader(4)]
         public long? MAS219780
@@ -209,7 +219,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
 
 
         /// <summary>
-        /// UTILIDAD GRAVABLE POR LA QUE SE APLICA LA REDUCCIÓN DEL ISR
+        /// Utilidad gravable por la que se aplica la reducción del ISR
         /// </summary>
         [TxtReader(5)]
         public long? MAS219808
@@ -227,25 +237,25 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         }
 
         /// <summary>
-        /// IMPUESTO SOBRE LA RENTA POR EL QUE SE APLICA LA REDUCCIÓN
+        /// Impuesto sobre la renta por el que se aplica la reducción
         /// </summary>
         [TxtReader(6)]
         public long? MAS219781
         {
             get
             {
-                return this.ImpuestoSobreLaRentaPorElQueNoSeAplicaLaReduccion;
+                return this.ImpuestoSobreLaRentaPorElQueSeAplicaLaReduccion;
             }
 
             set
             {
                 this.mas219781 = value;
-                this.ImpuestoSobreLaRentaPorElQueNoSeAplicaLaReduccion = this.mas219781;
+                this.ImpuestoSobreLaRentaPorElQueSeAplicaLaReduccion = this.mas219781;
             }
         }
 
         /// <summary>
-        /// REDUCCIONES DEL ISR
+        /// Reducciones del ISR
         /// </summary>
         [TxtReader(7)]
         public long? MAS219809
@@ -297,7 +307,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         }
 
         /// <summary>
-        /// IMPUESTO SOBRE LA RENTA POR EL QUE NO SE APLICA LA REDUCCIÓN
+        /// Impuesto sobre la renta por el que no se aplica la reducción
         /// </summary>
         [TxtReader(8)]
         public long? MAS219812
@@ -332,7 +342,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         }
 
         /// <summary>
-        /// PAGOS PROVISIONALES EFECTUADOS POR LA PERSONA MORAL
+        /// Pagos provisionales efectuados por la persona moral
         /// </summary>
         [TxtReader(9)]
         public long? MAS219782
@@ -350,7 +360,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         }
 
         /// <summary>
-        /// ISR A CARGO DEL EJERCICIO
+        /// ISR a cargo del ejercicio
         /// </summary>
         [TxtReader(10)]
         public long? MAS219783
@@ -368,7 +378,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         }
 
         /// <summary>
-        /// ISR A FAVOR DEL EJERCICIO
+        /// ISR a favor del ejercicio
         /// </summary>
         [TxtReader(11)]
         public long? MAS219784
@@ -386,7 +396,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         }
 
         /// <summary>
-        /// PTU POR DISTRIBUIR
+        /// PTU por distribuir
         /// </summary>
         [TxtReader(12)]
         public long? MAS219785
@@ -415,27 +425,69 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </summary>
         public List<MasivaF25> ListaElementosMasivos { get; set; }
 
+        /// <summary>
+        ///     Diccionario de datos, contiene las definiciones de las propiedades con su descripción.
+        /// </summary>
+        [JsonIgnore]
+        public Dictionary<string, string> DiccionarioDeDatos { get; set; }
+
+        /// <summary>
+        ///     Diccionario de calculos, contiene los calculos que son ejecutados durante la carga masiva.
+        /// </summary>
+        /// <value>
+        ///     Diccionario con los calculos de la carga masiva.
+        /// </value>
+        [JsonIgnore]
+        public Dictionary<string, string> DiccionarioDeCalculos { get; set; }
+
+        /// <summary>
+        ///     Errores de las validaciones.
+        /// </summary>
+        [JsonIgnore]
+        public List<ErrorModel> Errores { get; set; }
+
         #endregion
 
         #region Public Methods and Operators
 
         /// <summary>
-        /// Crea la lista de elementos de carga masiva.
+        ///     Crea la lista de elementos de carga masiva.
         /// </summary>
         /// <param name="txt">
-        /// TxtReader a partir del archivo.
+        ///     TxtReader a partir del archivo.
         /// </param>
         /// <param name="registrosFiltrados">
-        /// registros filtrados.
+        ///     registros filtrados.
         /// </param>
-        public void CrearListaDeElementos(TxtReader txt, HashSet<string> registrosFiltrados)
+        /// <param name="ejercicio">
+        ///     Ejercicio de la declaración
+        /// </param>
+        public void CrearListaDeElementos(TxtReader txt, HashSet<string> registrosFiltrados, int? ejercicio = null)
         {
-            this.ListaElementosMasivos = txt.ReadVariableLength<MasivaF25>(
-                registrosFiltrados.ToArray(),
-                this.PrimeraLineaEsEncabezado,
-                this.Separador,
-                this.EliminarEspaciosEnBlanco);
+            var listaElementos = new List<MasivaF25>();
 
+            try
+            {
+                listaElementos = txt.ReadVariableLength<MasivaF25>(
+                                                        registrosFiltrados.ToArray(),
+                                                        this.PrimeraLineaEsEncabezado,
+                                                        this.Separador,
+                                                        this.EliminarEspaciosEnBlanco);
+
+                if (ejercicio != null)
+                {
+                    listaElementos.ForEach(l => l.Ejercicio = ejercicio.Value);
+                }
+            }
+            catch (DataTypeCreationException e)
+            {
+                var msjErr = e.Message;
+                msjErr = msjErr.Replace(e.NombrePropiedad, string.Format("<b>{0}</b>", this.DiccionarioDeDatos[e.NombrePropiedad]));
+
+                this.Errores.Add(new ErrorModel(msjErr));
+            }
+
+            this.ListaElementosMasivos = listaElementos;
             this.ListaDeElementos = new List<object>(this.ListaElementosMasivos);
         }
 
@@ -448,20 +500,32 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// <param name="subregimenes">
         /// SubRegimenes de la declaración
         /// </param>
+        /// <param name="valorDelAuxiliar">
+        ///     El valor del Auxiliar indica si al ejecutar los calculos seran para el borrado.
+        /// </param>
         /// <returns>
         /// Un diccionario con el resultado de los calculos
         /// </returns>
         public Dictionary<string, string> EjecutarCalculos(
             Dictionary<string, string> parametros,
-            HashSet<string> subregimenes)
+            HashSet<string> subregimenes,
+            string valorDelAuxiliar = "")
         {
-            return HelpersMasivas.EjecutarCalculos(
+            this.DiccionarioDeCalculos = HelpersMasivas.EjecutarCalculos(
                                             this.ListaElementosMasivos,
                                             parametros,
                                             subregimenes,
                                             this.ObtenerCalculos().ToArray(),
                                             this.AuxiliarNombre,
                                             this.AuxiliarValor);
+
+
+            if (valorDelAuxiliar.Equals("0"))
+            {
+                this.ReiniciarAuxiliares();
+            }
+
+            return this.DiccionarioDeCalculos;
         }
 
         /// <summary>
@@ -496,11 +560,29 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         /// </returns>
         public string EjecutarReglas(Dictionary<string, string> parametros, HashSet<string> subregimenes)
         {
-            return HelpersMasivas.GetAllErrorMessages(
-                this.ListaElementosMasivos,
-                parametros,
-                subregimenes,
-                this.ObtenerReglas().ToArray());
+            string errorMsj;
+
+            if (this.Errores.Any())
+            {
+                var msjesError = new StringBuilder();
+
+                foreach (var error in this.Errores)
+                {
+                    msjesError.AppendFormat("{0} <br> <br>", error.Message);
+                }
+
+                errorMsj = msjesError.ToString();
+            }
+            else
+            {
+                errorMsj = HelpersMasivas.GetAllErrorMessages(
+                                                    this.ListaElementosMasivos,
+                                                    parametros,
+                                                    subregimenes,
+                                                    this.ObtenerReglas().ToArray());
+            }
+
+            return errorMsj;
         }
 
         /// <summary>
@@ -519,20 +601,19 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         {
             var result = new List<ErrorModel>();
 
-            //result.AddRange(this.ValidarRfc());
-            //result.AddRange(this.ValidarUtilidadGravable());
-            //result.AddRange(this.ValidarPerdidaFiscal());
-            //result.AddRange(this.ValidarUtilidadGravablePorLaQueSeAplicaLaReduccionDelIsr());
-            //result.AddRange(this.ValidarImpuestoSobreLaRentaPorElQueSeAplicaLaReduccion());
-            //result.AddRange(this.ValidarReduccionesDelIsr());
-            //result.AddRange(this.ValidarImpuestoReducido());
-            //result.AddRange(this.ValidarUtilidadGravablePorLaQueNoSeAplicaLaReduccionDelIsr());
-            //result.AddRange(this.ValidarImpuestoSobreLaRentaPorElNoQueSeAplicaLaReduccion());
-            //result.AddRange(this.ValidarImpuestoCausadoEnElEjercicio());
-            //result.AddRange(this.ValidarPagosProvisionales());
-            //result.AddRange(this.ValidarIsrACargoDelEjercicio());
-            //result.AddRange(this.ValidarIsrAFavorDelEjercicio());
-            //result.AddRange(this.ValidarPtuPorDistribuir());
+            result.AddRange(this.ValidarRfc());
+            result.AddRange(this.ValidarUtilidadGravable());
+            result.AddRange(this.ValidarPerdidaFiscal());
+            result.AddRange(this.ValidarUtilidadGravablePorLaQueSeAplicaLaReduccionDelIsr());
+            result.AddRange(this.ValidarImpuestoSobreLaRentaPorElQueSeAplicaLaReduccion());
+            result.AddRange(this.ValidarReduccionesDelIsr());
+            result.AddRange(this.ValidarImpuestoReducido());
+            result.AddRange(this.ValidarImpuestoSobreLaRentaPorElNoQueSeAplicaLaReduccion());
+            result.AddRange(this.ValidarImpuestoCausadoEnElEjercicio());
+            result.AddRange(this.ValidarPagosProvisionales());
+            result.AddRange(this.ValidarIsrACargoDelEjercicio());
+            result.AddRange(this.ValidarIsrAFavorDelEjercicio());
+            result.AddRange(this.ValidarPtuPorDistribuir());
 
             return result;
         }
@@ -547,8 +628,8 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         {
             return new List<HelpersMasivas.Calculate<MasivaF25>>
                        {
-                           //CalculoC6,
-                           //CalculoC7
+                           CalculoC6,
+                           CalculoC7
                        };
         }
 
@@ -587,11 +668,121 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             return new List<HelpersMasivas.Ruler<MasivaF25>> { ReglaRfcDuplicado };
         }
 
+        /// <summary>
+        ///     Inicializa el diccionario de datos.
+        /// </summary>
+        public void InicializaDiccionarioDeDatos()
+        {
+            this.DiccionarioDeDatos = new Dictionary<string, string>
+                                          {
+                                                { "MAS219778", "RFC del integrante" },
+                                                { "MAS219779", "Utilidad gravable" },
+                                                { "MAS219780", "Pérdida fiscal" },
+                                                { "MAS219808", "Utilidad gravable por la que se aplica la reducción del ISR" },
+                                                { "MAS219781", "Impuesto sobre la renta por el que se aplica la reducción" },
+                                                { "MAS219809", "Reducciones del ISR" },
+                                                { "MAS219812", "Impuesto sobre la renta por el que no se aplica la reducción" },
+                                                { "MAS219782", "Pagos provisionales efectuados por la persona moral" },
+                                                { "MAS219783", "ISR a cargo del ejercicio" },
+                                                { "MAS219784", "ISR a favor del ejercicio" },
+                                                { "MAS219785", "PTU por distribuir" }
+                                          };
+        }
+
+        /// <summary>
+        ///     Inicializa la lista de errores.
+        /// </summary>
+        public void InicializaListaDeErrores()
+        {
+            this.Errores = new List<ErrorModel>();
+        }
+
+        /// <summary>
+        ///     Reinicia los auxiliares de los calculos.
+        /// </summary>
+        public void ReiniciarAuxiliares()
+        {
+            if (this.DiccionarioDeCalculos.Any())
+            {
+                var dicAux =
+                    this.DiccionarioDeCalculos
+                        .Select((t, i) => this.DiccionarioDeCalculos.ElementAt(i))
+                        .ToDictionary(calculo => calculo.Key, calculo => "0");
+
+                this.DiccionarioDeCalculos = dicAux;
+            }
+        }
+
         #endregion
 
         #region Methods
 
-        #region
+        /// <summary>
+        ///     Valida el campo ISR a favor del ejercicio.
+        /// </summary>
+        /// <returns>
+        ///     Lista de ErrorModel
+        /// </returns>
+        protected override List<ErrorModel> ValidarIsrAFavorDelEjercicio()
+        {
+            var erroresIsrAFavorDelEjercicio = new List<ErrorModel>();
+
+            StringBuilder msjErr;
+
+            var impCausadoEnEjer = this.ImpuestoCausadoEnElEjercicio ?? 0;
+            var pagProvEfecCoord = this.PagosProvisionalesEfectuadosPorElCoordinado ?? 0;
+
+            if (!(pagProvEfecCoord > impCausadoEnEjer) && this.IsrAFavorDelEjercicio != null)
+            {
+                msjErr = new StringBuilder();
+                msjErr.Append("Linea {0:#,###}: El <b>ISR A Favor Del Ejercicio</b> solo puede estar presente ");
+                msjErr.Append("si los Pagos Provisionales Efectuados por la persona Moral es mayor a ");
+                msjErr.Append(" el Impuesto Causado En el Ejercicio");
+
+                erroresIsrAFavorDelEjercicio.Add(new ErrorModel(string.Format(msjErr.ToString(), this.Indice)));
+            }
+            else if (this.IsrAFavorDelEjercicio != null)
+            {
+                var isrAFavorDelEjercicio = this.IsrAFavorDelEjercicio.Value;
+
+                if (isrAFavorDelEjercicio == 0)
+                {
+                    erroresIsrAFavorDelEjercicio.Add(
+                        new ErrorModel(
+                            "Linea {0:#,###}: El <b>ISR A Favor Del Ejercicio</b> debe ser un valor entero mayor que cero.",
+                            this.Indice));
+                }
+
+                var longMin = 0;
+                var longMax = 12;
+
+                var validarLongitud = HelpersMasivas.ValidarLongitud(
+                    this.IsrAFavorDelEjercicio,
+                    longMin,
+                    longMax,
+                    "Linea {0:#,###}: El <b>ISR A Favor Del Ejercicio</b> debe tener una longitud entre 0 y 12 caracteres.",
+                    this.Indice);
+
+                if (validarLongitud != null)
+                {
+                    erroresIsrAFavorDelEjercicio.Add(validarLongitud);
+                }
+
+                if (
+                    HelpersMasivas.MutuamenteExcluyentes(
+                        HelpersMasivas.ValorEsMayorIgualAcero(this.IsrAFavorDelEjercicio),
+                        this.IsrACargoDelEjercicio == null))
+                {
+                    msjErr = new StringBuilder();
+                    msjErr.Append("Linea {0:#,###}: Si el <b>ISR A Favor Del Ejercicio</b> es mayor igual a cero, ");
+                    msjErr.Append("el ISR A Cargo Del Ejercicio debe ser nulo");
+
+                    erroresIsrAFavorDelEjercicio.Add(new ErrorModel(string.Format(msjErr.ToString(), this.Indice)));
+                }
+            }
+
+            return erroresIsrAFavorDelEjercicio;
+        }
 
         #region Calculos
 
@@ -616,7 +807,7 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             HashSet<string> subregimenes)
         {
             var suma = entrada.Sum(x => x.MAS219783 ?? 0);
-            return new Tuple<string, string>("C7", suma.ToString());
+            return new Tuple<string, string>(C7IsrACargo, suma.ToString());
         }
 
         /// <summary>
@@ -640,10 +831,8 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
             HashSet<string> subregimenes)
         {
             var suma = entrada.Sum(x => x.MAS219784 ?? 0);
-            return new Tuple<string, string>("C6", suma.ToString());
+            return new Tuple<string, string>(C6IsrAFavor, suma.ToString());
         }
-
-        #endregion
 
         #endregion
 
@@ -707,10 +896,18 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
                         var utilidadGravableMayorQueCero = (utilidadGravable ?? 0) > 0;
 
                         var utilGravAplicaLaReducIsrEsMayorQueUtilidadGravable =
-                            utilidadGravablePorLaQueSeAplicaLaReducIsr > utilidadGravable;
+                            utilidadGravable >utilidadGravablePorLaQueSeAplicaLaReducIsr;
 
                         return utilidadGravableMayorQueCero && utilGravAplicaLaReducIsrEsMayorQueUtilidadGravable;
-                    }).ToList().ForEach(x => x.MAS219811 = x.MAS219779 - x.MAS219808);
+                    }).ToList().ForEach(x =>
+                                            {
+                                                x.MAS219811 = x.MAS219779 - x.MAS219808;
+
+                                                if(x.MAS219779 <= 0)
+                                                {
+                                                    x.MAS219811 = null;
+                                                }
+                                            });
         }
 
         /// <summary>
@@ -764,6 +961,16 @@ namespace Sat.DeclaracionesAnuales.CargaMasiva.Models.Morales
         }
 
         #endregion
+
+        /// <summary>
+        /// Inicializas the campos.
+        /// </summary>
+        private void InicializaCampos()
+        {
+            this.ObtenerNombreAuxiliar();
+            this.InicializaDiccionarioDeDatos();
+            this.InicializaListaDeErrores();
+        }
 
         #endregion
     }
